@@ -53,8 +53,8 @@ class PointMassModel:
         p_vx = self.vx
         p_vy = self.vy
 
-        self.vx += self.t * self.ax
-        self.vy += self.t * self.ay
+        self.vx += dt * self.ax
+        self.vy += dt * self.ay
 
         vx_eff = (p_vx + self.vx) / 2.0
         vy_eff = (p_vy + self.vy) / 2.0
@@ -74,15 +74,15 @@ class PointMassModel:
 
     # RETURNS: the tuple of (F_x, F_y) graviational force components
     def g_force(self):
-        return (0.0, -0.002)
+        return (0.0, -0.02)
 
     # RETURNS: the dynamic friction force 2d vector
     #   for given parameters of flight
     #   (f_x, f_y)
     def friction_force_2d(self, vx, vy):
-        V1_FRICTION_COEFF = 0.0002
-        V2_FRICTION_COEFF = 0.0004
-        V3_FRICTION_COEFF = 0.0006
+        V1_FRICTION_COEFF = 0.002
+        V2_FRICTION_COEFF = 0.004
+        V3_FRICTION_COEFF = 0.006
 
         v_abs = math.sqrt(vx**2. + vy**2.)
         v_dir = (vx, vy)
@@ -101,7 +101,7 @@ class PointMassModel:
         vmodel = PointMassModel()
         vmodel.clone_from(self)
         vmodel.t = 0.
-        trajectory = np.zeros((100,3))
+        trajectory = np.zeros((1000, 3))
         predict_dt = 0.1
         for i in range(trajectory.shape[0]):
             vmodel.iterate(predict_dt)
@@ -178,8 +178,8 @@ class ModelVisualization2d1t(Widget):
     def __init__(self, **kwargs):
         super(ModelVisualization2d1t, self).__init__(**kwargs)
         self.grid = Grid2d()
-        self.vport_geom_m = (-0, 0, 300, 100)
-        self.grid_geom_m = (-0, 0, 300, 100)
+        self.vport_geom_m = (-0, 0, 150, 50)
+        self.grid_geom_m = (-0, 0, 150, 50)
 
     def draw(self, model):
         self.canvas.clear()
@@ -190,7 +190,7 @@ class ModelVisualization2d1t(Widget):
 
         with self.canvas:
             Color(1.0,0.0,1.0)
-            MARK_SIZE_PIX=10
+            MARK_SIZE_PIX=20
             cx_p = self.grid.xm2xp(model.x, self.vport_geom_m, self.size)
             cy_p = self.grid.ym2yp(model.y, self.vport_geom_m, self.size)
 
@@ -205,12 +205,16 @@ class ModelVisualization2d1t(Widget):
         with self.canvas:
             MARK_SIZE_PIX=3
             if model.prediction is not None:
-                for i in range(model.prediction.shape[0]):
+                for i in (list(range(model.prediction.shape[0]))
+                          + list(range(0, model.prediction.shape[0], 100))):
                     t = model.prediction[i,0]
                     x = model.prediction[i,1]
                     y = model.prediction[i,2]
                     t_max = model.prediction[-1,0]
-                    Color(1.0 - t/t_max, 1.0 - t/t_max, 1.0)
+                    if i % 100 != 0:
+                        Color(1.0 - t/t_max, 1.0 - t/t_max, 1.0)
+                    else:
+                        Color(1.0, 0.0, 0.0)
 
                     cx_p = self.grid.xm2xp(x, self.vport_geom_m, self.size)
                     cy_p = self.grid.ym2yp(y, self.vport_geom_m, self.size)
