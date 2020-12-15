@@ -1,3 +1,6 @@
+import math
+import numpy as np
+
 import kivy
 kivy.require('1.11.1')
 
@@ -15,6 +18,7 @@ from kivy.clock import Clock
 # Simple point mass model
 class PointMassModel:
 
+    # @m mass of the point in KG
     def __init__(self):
         self.x = 0.
         self.y = 0.
@@ -23,10 +27,28 @@ class PointMassModel:
         self.t = 0.
         self.ax = 0.
         self.ay = -0.002
+        self.m = 1.0
+
+        # unclonable
+        self.prediction = None
+
+    # adopts all parameters from other instance
+    def clone_from(self, other):
+        self.x = other.x
+        self.y = other.y
+        self.vx = other.vx
+        self.vy = other.vy
+        self.t = other.t
+        self.ax = other.ax
+        self.ay = other.ay
+        self.m = other.m
 
     # updates the model time
-    def iterate(self, dt):
+    def iterate(self, dt, update_prediction=False):
         self.t += dt
+        f_total = self.total_force()
+        self.ax = f_total[0]/self.m
+        self.ay = f_total[1]/self.m
 
         p_vx = self.vx
         p_vy = self.vy
@@ -39,28 +61,53 @@ class PointMassModel:
 
         self.x += self.ax * dt**2.0 / 2.0 + vx_eff * dt
         self.y += self.ay * dt**2.0 / 2.0 + vy_eff * dt
+
+        # do future prediction
+        if update_prediction:
+            self.prediction = self.predict()
         
+    # RETURNS: the tuple of (F_x, F_y) force components
+    def total_force(self):
+        ff = self.friction_force_2d(self.vx, self.vy)
+        gf = self.g_force()
+        return [ c1 + c2 for c1,c2 in zip(ff,gf) ]
+
+    # RETURNS: the tuple of (F_x, F_y) graviational force components
+    def g_force(self):
+        return (0.0, -0.002)
 
     # RETURNS: the dynamic friction force 2d vector
     #   for given parameters of flight
     #   (f_x, f_y)
-    def friction_force_2d(self, x, y, vx, vy):
-        V1_FRICTION_COEFF = 0.1
-        V2_FRICTION_COEFF = 0.2
-        V3_FRICTION_COEFF = 0.3
+    def friction_force_2d(self, vx, vy):
+        V1_FRICTION_COEFF = 0.0002
+        V2_FRICTION_COEFF = 0.0004
+        V3_FRICTION_COEFF = 0.0006
 
-        v_abs = sqrt(vx**2. + vy**2.)
-        v_dir = (vx / v_abs, vy / v_abs)
-        F_abs = (
-                V1_FRICTION_COEFF * v_abs
-                + V2_FRICTION_COEFF * v_abs**2 +
-                + V3_FRICTION_COEFF * v_abs**3
-                )
+        v_abs = math.sqrt(vx**2. + vy**2.)
+        v_dir = (vx, vy)
+        F_abs = ( V1_FRICTION_COEFF
+                  + V2_FRICTION_COEFF * v_abs +
+                  + V3_FRICTION_COEFF * v_abs**2)
         
         F_f = (-v_dir[0] * F_abs, -v_dir[1] * F_abs)
         return F_f
-        
 
+    # the prediction of the model future dynamics
+    # RETURNS:
+    #   numpy array of points (t, x, y)
+    #   NOTE: time starts from current position
+    def predict(self):
+        vmodel = PointMassModel()
+        vmodel.clone_from(self)
+        vmodel.t = 0.
+        trajectory = np.zeros((100,3))
+        predict_dt = 0.1
+        for i in range(trajectory.shape[0]):
+            vmodel.iterate(predict_dt)
+            trajectory[i] = np.array((vmodel.t, vmodel.x, vmodel.y))
+        return trajectory
+            
 # Just draws a grid with given parameters
 class Grid2d:
 
@@ -142,7 +189,7 @@ class ModelVisualization2d1t(Widget):
                        , vport_size_pix=self.size)
 
         with self.canvas:
-            Color(0.0,1.0,0.0)
+            Color(1.0,0.0,1.0)
             MARK_SIZE_PIX=10
             cx_p = self.grid.xm2xp(model.x, self.vport_geom_m, self.size)
             cy_p = self.grid.ym2yp(model.y, self.vport_geom_m, self.size)
@@ -155,11 +202,32 @@ class ModelVisualization2d1t(Widget):
                          , cx_p, cy_p + MARK_SIZE_PIX / 2.]
                  , width=1)
 
+        with self.canvas:
+            MARK_SIZE_PIX=3
+            if model.prediction is not None:
+                for i in range(model.prediction.shape[0]):
+                    t = model.prediction[i,0]
+                    x = model.prediction[i,1]
+                    y = model.prediction[i,2]
+                    t_max = model.prediction[-1,0]
+                    Color(1.0 - t/t_max, 1.0 - t/t_max, 1.0)
+
+                    cx_p = self.grid.xm2xp(x, self.vport_geom_m, self.size)
+                    cy_p = self.grid.ym2yp(y, self.vport_geom_m, self.size)
+
+                    Line(circle=(cx_p, cy_p, MARK_SIZE_PIX))
+                    Line(points=[cx_p - MARK_SIZE_PIX / 2. , cy_p
+                                 , cx_p + MARK_SIZE_PIX / 2. , cy_p]
+                         , width=1)
+                    Line(points=[cx_p, cy_p - MARK_SIZE_PIX / 2.
+                                 , cx_p, cy_p + MARK_SIZE_PIX / 2.]
+                         , width=1)
+
 
 class MainFlightScreen(GridLayout):
 
     def iterate(self, dt):
-        self.model.iterate(dt)
+        self.model.iterate(dt, update_prediction=True)
         self.scene.draw(self.model)
         self.wdict["model_time"].text = "Model time: %s s" % self.model.t
 
