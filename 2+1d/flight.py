@@ -18,11 +18,11 @@ class PointMassModel:
     def __init__(self):
         self.x = 0.
         self.y = 0.
-        self.vx = 4.
-        self.vy = 2.0
+        self.vx = 8.
+        self.vy = 4.0
         self.t = 0.
         self.ax = 0.
-        self.ay = -0.001
+        self.ay = -0.002
 
     # updates the model time
     def iterate(self, dt):
@@ -131,23 +131,28 @@ class ModelVisualization2d1t(Widget):
     def __init__(self, **kwargs):
         super(ModelVisualization2d1t, self).__init__(**kwargs)
         self.grid = Grid2d()
+        self.vport_geom_m = (-0, 0, 300, 100)
+        self.grid_geom_m = (-0, 0, 300, 100)
 
     def draw(self, model):
         self.canvas.clear()
 
-        self.grid.draw(self.canvas, grid_geom_m=(-10, 0, 10, 10)
-                       , vport_geom_m=(-10, 0, 10, 10)
+        self.grid.draw(self.canvas, grid_geom_m=self.grid_geom_m
+                       , vport_geom_m=self.vport_geom_m
                        , vport_size_pix=self.size)
 
         with self.canvas:
             Color(0.0,1.0,0.0)
-            MARK_SIZE=10
-            Line(circle=(model.x, model.y, MARK_SIZE))
-            Line(points=[model.x - MARK_SIZE / 2. , model.y
-                         , model.x + MARK_SIZE / 2. , model.y]
+            MARK_SIZE_PIX=10
+            cx_p = self.grid.xm2xp(model.x, self.vport_geom_m, self.size)
+            cy_p = self.grid.ym2yp(model.y, self.vport_geom_m, self.size)
+
+            Line(circle=(cx_p, cy_p, MARK_SIZE_PIX))
+            Line(points=[cx_p - MARK_SIZE_PIX / 2. , cy_p
+                         , cx_p + MARK_SIZE_PIX / 2. , cy_p]
                  , width=1)
-            Line(points=[model.x, model.y - MARK_SIZE / 2.
-                         , model.x, model.y + MARK_SIZE / 2.]
+            Line(points=[cx_p, cy_p - MARK_SIZE_PIX / 2.
+                         , cx_p, cy_p + MARK_SIZE_PIX / 2.]
                  , width=1)
 
 
@@ -165,7 +170,10 @@ class MainFlightScreen(GridLayout):
         self.add_widget(Label(text="Visualization"))
         self.wdict["model_time"] = Label(text="")
         self.add_widget(self.wdict["model_time"])
-        self.scene = ModelVisualization2d1t()
+        self.scene = ModelVisualization2d1t(size_hint_x=None
+                                            , size_hint_y=None
+                                            , width=800
+                                            , height=700)
         self.add_widget(self.scene)
 
         self.model = PointMassModel()
