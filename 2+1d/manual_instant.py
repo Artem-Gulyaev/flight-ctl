@@ -332,7 +332,7 @@ class MainFlightScreen(GridLayout):
         self._keyboard = None
 
     def on_keyboard_down(self, keyboard, keycode, text, modifiers):
-        JET_THRUST_F = 0.1
+        JET_THRUST_F = 0.7
         print("@@@@ KEY code: " + str(keycode))
         if keycode[0] == 1073741904:
             print("Pl. Left")
