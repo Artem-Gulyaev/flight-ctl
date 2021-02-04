@@ -27,16 +27,25 @@ Further decomposition gives:
         Can formalize any arbitrary goal (like fuel
         economy, noisiness, travel time, etc.)
 
-The modeling process:
+# The System
 
-* Load System
+System is described by its current state and
+routines to compute the next state at time t + dt.
 
-  Model is described by its current state and
-  routines to compute the next state at time t + dt.
+These routines include the laws of Physics as well
+as control system algorithms, resulting in the complex
+behaviour of the System with the aim of minimization
+loss function.
 
-  These routines include the laws of Physics as well
-  as control system algorithms, resulting in the complex
-  behaviour of the System with the aim of minimization
-  loss function.
-  
+Note: the control system algorithms can have some
+ parameters (hyper-parameters), which are externally
+ defined, as well as other parameters which the system
+ identifies by itself at the runtime. Hyper parameters
+ can be fixed, and can be adjustible within the training
+ sequence. Something, like internal routines and
+ hardcoded parameters are fixed for the system.
+
+System state vector: V(t)
+System description: {evolution routines}
+
 
