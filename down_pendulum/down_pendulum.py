@@ -47,6 +47,9 @@ class Pendulum:
         return "Phase vector: %s\nParameters: %s\nHamiltonian: %s\n" % (str(self.phase_vector), str(self.params), str(self.H()))
 
     # Hamiltonian of the system
+    # TODO: take it into account at computing to adjust
+    #    phase vector to keep H constant (surely in case of
+    #    no external forces)
     def H(self):
         m = self.params["m_kg"]
         g = self.params["g_mps2"]
