@@ -39,6 +39,7 @@ class Pendulum:
         else:
             self.phase_vector = init_phase_vector
 
+        self.H0 = self.H()
         print("Initialized Pendulum system: %s" % (str(self)))
 
     # RETURNS:
@@ -97,6 +98,48 @@ class Pendulum:
 
             self.phase_vector[i, 0] += dq
             self.phase_vector[i, 1] += dp
+
+        # for now fits only to the conservative systems
+        self.apply_H_correction()
+
+    # corrects the current phase space location to
+    # fit H=const constraint
+    def apply_H_correction(self):
+        # how much of grad is determined with the current grad
+        grad_decay = 0.1
+        # how big step wrt to grad
+        step_rate = 0.0001
+        # The allowed error in H
+        H_epsilon = 0.00001
+
+        def loss():
+            return (self.H() - self.H0)**2
+
+        # @i the coordinate variable index
+        def dLdq(i):
+            return 2 * (self.H() - self.H0) * self.dHdq(i)
+
+        # @i the momentum variable index
+        def dLdp(i):
+            return 2 * (self.H() - self.H0) * self.dHdp(i)
+        
+        # initializing the gradient vector with initial grad
+        gradient = np.ndarray(shape=self.phase_vector.shape, dtype=float)
+        for i in range(self.phase_vector.shape[0]):
+            gradient[i,0] = self.dHdq(i)
+            gradient[i,1] = self.dHdp(i)
+
+        # iterating over down to min of loss function
+        steps_counter = 0
+        while loss() > H_epsilon:
+            gradient = np.ndarray(shape=self.phase_vector.shape, dtype=float)
+            for i in range(self.phase_vector.shape[0]):
+                gradient[i,0] = dLdq(i) * grad_decay + gradient[i,0] * (1.0 - grad_decay)
+                gradient[i,1] = dLdp(i) * grad_decay + gradient[i,1] * (1.0 - grad_decay)
+            self.phase_vector = self.phase_vector - step_rate * gradient
+            steps_counter += 1
+
+        print("H correction done: %d steps, error: %f" % (steps_counter, loss()))
             
     # Runs some iterations
     def run(self, steps_count, dt=0.01):
