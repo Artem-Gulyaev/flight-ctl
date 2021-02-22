@@ -26,9 +26,9 @@ class Pendulum:
     def default_init_state(self):
         phase_vector = np.ndarray(shape=(self.dynamic_vars_N,3), dtype=float)
         # q1: alpha
-        phase_vector[0][0] = 1.0
+        phase_vector[0][0] = 1.5
         # p1: alpha momentum
-        phase_vector[0][1] = 0.0
+        phase_vector[0][1] = 4.8
         # f1: alpha generalized force (external wrt the system)
         phase_vector[0][2] = 0.0
         return phase_vector
@@ -94,7 +94,7 @@ class Pendulum:
             #             Internal               Arbitrary
             #       ----Conservative-----      -External-
             #      /       force         \    /  force /
-            return m * g * l * sin(q_alpha)# + f_alpha
+            return m * g * l * sin(q_alpha) + f_alpha
         raise RuntimeError("Unknown variable index: %s" % str(var_idx))
 
     # Partial derivative of our Hamiltonian
@@ -149,18 +149,21 @@ class Pendulum:
         # computing energy gain/loss due to external forces
         # work along/against the system
         H_estimated = H1 + np.sum(dV[:,2])
+        print("Ext. force work: %f" % (H_estimated - H1))
 
         # for now fits only to the conservative systems
-        self.apply_H_correction(H_estimated)
+        #self.apply_H_correction(H_estimated)
 
     # corrects the current phase space location to
     # fit H=H_estimated constraint using the gradient descent
     # with decay
     def apply_H_correction(self, H_estimated):
+        print("Starting correction %f -> %f" % (self.H(), H_estimated))
+
         # how much of grad is determined with the current grad
         grad_decay = 0.1
         # how big step wrt to grad
-        step_rate = 0.00001
+        step_rate = 0.000001
         # The allowed error in H
         H_epsilon = 0.00000001
 
@@ -183,8 +186,13 @@ class Pendulum:
 
         # iterating over down to min of loss function with decaying
         # gradient descent variation
+        MAX_OPTIMIZATION_STEPS = 1000
         steps_counter = 0
         while loss() > H_epsilon:
+            if (steps_counter > MAX_OPTIMIZATION_STEPS):
+                print("WARNING: MAX_OPTIMIZATION_STEPS(%d) reached! Abort!"
+                      % MAX_OPTIMIZATION_STEPS)
+                break
             gradient = np.ndarray(shape=self.phase_vector.shape, dtype=float)
             for i in range(self.phase_vector.shape[0]):
                 gradient[i,0] = dLdq(i) * grad_decay + gradient[i,0] * (1.0 - grad_decay)
@@ -195,7 +203,7 @@ class Pendulum:
         print("H correction done: %d steps, error: %f" % (steps_counter, loss()))
             
     # Runs some iterations
-    def run(self, steps_count, dt=0.01):
+    def run(self, steps_count, dt=0.001):
         # only 2d plotting
         curve_p = np.ndarray(shape=(steps_count, 2), dtype=float)
         curve_q = np.ndarray(shape=(steps_count, 2), dtype=float)
@@ -214,4 +222,4 @@ class Pendulum:
 
 if __name__ == "__main__":
     system = Pendulum()
-    system.run(1300)
+    system.run(13000)
