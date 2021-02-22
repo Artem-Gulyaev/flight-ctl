@@ -3,6 +3,7 @@
 
 import numpy as np
 from math import *
+import matplotlib.pyplot as plt
 
 class Pendulum:
 
@@ -14,10 +15,16 @@ class Pendulum:
                 , "m_kg": 1.0
                }
 
+    # RETURNS:
+    #   the number of the dynamic generalized variables
+    #   of the current system
+    @property
+    def dynamic_vars_N(self):
+        return 1
+
     # RETURNS: default initial state for the system
-    def default_init_state():
-        N_vars = 1
-        phase_vector = np.ndarray(shape=(N_vars,3), dtype=float)
+    def default_init_state(self):
+        phase_vector = np.ndarray(shape=(self.dynamic_vars_N,3), dtype=float)
         # q1: alpha
         phase_vector[0][0] = 1.0
         # p1: alpha momentum
@@ -25,6 +32,13 @@ class Pendulum:
         # f1: alpha generalized force (external wrt the system)
         phase_vector[0][2] = 0.0
         return phase_vector
+
+    # provides an external forces to the system at current state
+    # NOTE: usually indirectly issued by non-potential forces,
+    #   like friction, thrust, etc. - all the stuff which didn't
+    #   make it directly to the system hamiltonian.
+    def current_ext_forces(self):
+        return np.zeros(shape=(self.dynamic_vars_N, 1), dtype=float)
 
     # @self.phase_vector a phase space vector
     #   which describes the system state
@@ -39,7 +53,7 @@ class Pendulum:
             self.params = params
 
         if init_phase_vector is None:
-            self.phase_vector = Pendulum.default_init_state()
+            self.phase_vector = self.default_init_state()
         else:
             self.phase_vector = init_phase_vector
 
@@ -80,7 +94,7 @@ class Pendulum:
             #             Internal               Arbitrary
             #       ----Conservative-----      -External-
             #      /       force         \    /  force /
-            return m * g * l * sin(q_alpha) + f_alpha
+            return m * g * l * sin(q_alpha)# + f_alpha
         raise RuntimeError("Unknown variable index: %s" % str(var_idx))
 
     # Partial derivative of our Hamiltonian
@@ -99,6 +113,9 @@ class Pendulum:
     def step(self, eneralized_forces_vector, dt):
         # initial energy at the beginning of the step
         H1 = self.H()
+
+        # current control forces at the current step
+        self.phase_vector[:,2] = self.current_ext_forces()
 
         # first to columns are dp and dq
         # last column is the work of external forces
@@ -122,18 +139,19 @@ class Pendulum:
             dV[i, 0] = dq
             dV[i, 1] = dp
 
+            # the work of the external forces
             dV[i, 2] = dq * self.phase_vector[i,2]
 
         # updating all q and p
-        self.phase_vector[:,0] += self.phase_vector[:,0] + dV[:,0]
-        self.phase_vector[:,1] += self.phase_vector[:,1] + dV[:,1]
+        self.phase_vector[:,0] += dV[:,0]
+        self.phase_vector[:,1] += dV[:,1]
 
         # computing energy gain/loss due to external forces
         # work along/against the system
         H_estimated = H1 + np.sum(dV[:,2])
 
         # for now fits only to the conservative systems
-        self.apply_H_correction(H_estimated)
+        #self.apply_H_correction(H_estimated)
 
     # corrects the current phase space location to
     # fit H=H_estimated constraint using the gradient descent
@@ -178,10 +196,22 @@ class Pendulum:
             
     # Runs some iterations
     def run(self, steps_count, dt=0.01):
+        # only 2d plotting
+        curve_p = np.ndarray(shape=(steps_count, 2), dtype=float)
+        curve_q = np.ndarray(shape=(steps_count, 2), dtype=float)
+
         for i in range(steps_count):
             self.step(None, dt)
             print(self)
 
+            # only 2d for now
+            curve_q[i] = self.phase_vector[0][0]
+            curve_p[i] = self.phase_vector[0][1]
+
+        plt.plot(curve_q, curve_p)
+        plt.show()
+
+
 if __name__ == "__main__":
     system = Pendulum()
-    system.run(100)
+    system.run(1300)
