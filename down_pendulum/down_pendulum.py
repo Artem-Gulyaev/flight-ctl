@@ -40,6 +40,11 @@ class Pendulum:
     def current_ext_forces(self):
         return np.zeros(shape=(self.dynamic_vars_N, 1), dtype=float)
 
+    # Same as current_ext_forces(...) but provides the external
+    # forces for the given phase space vector @at_state
+    def ext_forces(self, at_state):
+        return np.zeros(shape=(self.dynamic_vars_N, 1), dtype=float)
+
     # @self.phase_vector a phase space vector
     #   which describes the system state
     #   NOTE: first index selects the generalized variable
@@ -71,24 +76,30 @@ class Pendulum:
     # derivatives only matter)
     # NOTE: meanwhile the forces are to be computed for
     #   Hamiltonian derivatives.
-    def H(self):
+    # @state target phase vector to compute the H in
+    def H(self, state=None):
+        if state is None:
+            state = self.phase_vector
         m = self.params["m_kg"]
         g = self.params["g_mps2"]
         l = self.params["l_m"]
-        q_alpha = self.phase_vector[0][0]
-        p_alpha = self.phase_vector[0][1]
+        q_alpha = state[0][0]
+        p_alpha = state[0][1]
         return (m * g * l * (1.0 - cos(q_alpha))
                 + m * (l * p_alpha)**2.0/2)
 
     # Partial derivative of our Hamiltonian
     # wrt to var with given index
-    def dHdq(self, var_idx):
+    # @state target phase vector to compute the H in
+    def dHdq(self, var_idx, state=None):
+        if state is None:
+            state = self.phase_vector
         if (var_idx == 0):
             m = self.params["m_kg"]
             g = self.params["g_mps2"]
             l = self.params["l_m"]
-            q_alpha = self.phase_vector[0][0]
-            f_alpha = self.phase_vector[0][2]
+            q_alpha = state[0][0]
+            f_alpha = state[0][2]
 
             #                                    Immediate
             #             Internal               Arbitrary
@@ -99,11 +110,14 @@ class Pendulum:
 
     # Partial derivative of our Hamiltonian
     # wrt to var momentum with given index
-    def dHdp(self, var_idx):
+    # @state target phase vector to compute the H in
+    def dHdp(self, var_idx, state=None):
+        if state is None:
+            state = self.phase_vector
         if (var_idx == 0):
             m = self.params["m_kg"]
             l = self.params["l_m"]
-            p_alpha = self.phase_vector[0][1]
+            p_alpha = state[0][1]
             return m * l**2 * p_alpha
         raise RuntimeError("Unknown variable index: %s" % str(var_idx))
 
@@ -151,8 +165,58 @@ class Pendulum:
         H_estimated = H1 + np.sum(dV[:,2])
         print("Ext. force work: %f" % (H_estimated - H1))
 
+        # NOTE: when crossing the H-domains optimization
+        #   of this kind strongly spoils the results
+        #
         # for now fits only to the conservative systems
         #self.apply_H_correction(H_estimated)
+
+    # Make a simulation step on @dt, but using balanced
+    # scheme on integration at each integration step
+    def step_v2(self, eneralized_forces_vector, dt):
+        # initial energy at the beginning of the step
+        H1 = self.H()
+
+        # A the initial system locaion at the beginning of
+        # the step.
+        # B is the computed location at the end of the step.
+        A = np.copy(self.phase_vector)
+        B = np.copy(self.phase_vector)
+
+        # current control/external forces at the current step
+        fA = self.ext_forces(at_state=A)
+        fB = self.ext_forces(at_state=B)
+
+        # Hamilton equations for evolution
+        # dq/dt = dH/dp
+        # dp/dt = -dH/dq
+        # ->
+        # dq = (dH/dp) * dt
+        # dp = -(dH/dq) * dt
+        # Using the symmetrical integration iterative scheme:
+        epsilon = 0.000001
+        dB_max = 10 * epsilon
+        iterations_count = 0
+        while dB_max > epsilon:
+            for i in range(self.phase_vector.shape[0]):
+                B_prev = np.copy(B)
+                fB = self.ext_forces(at_state=B_prev)
+                # Updating q
+                B[i,0] = A[i,0] + 0.5 * dt * (self.dHdp(i, state=A) + self.dHdp(i, state=B_prev))
+                # Updating p
+                B[i,1] = A[i,1] + 0.5 * dt * (-self.dHdq(i, state=A) - self.dHdq(i, state=B_prev)
+                                              + fA[i] + fB[i])
+                dB_max = np.max(np.abs(B - B_prev))
+                iterations_count += 1
+
+        print("Optimization iterations: %d" % iterations_count)
+
+        # work along/against the system
+        dA = np.dot((fA + fB)/2.0, (B-A)[:,0])
+        print("Ext. force work: %f" % (dA))
+
+        self.phase_vector = B
+
 
     # corrects the current phase space location to
     # fit H=H_estimated constraint using the gradient descent
@@ -209,7 +273,10 @@ class Pendulum:
         curve_q = np.ndarray(shape=(steps_count, 2), dtype=float)
 
         for i in range(steps_count):
-            self.step(None, dt)
+            # V1 quite inaccurate
+            #self.step(None, dt)
+            # V2 waaay more precise
+            self.step_v2(None, dt)
             print(self)
 
             # only 2d for now
@@ -220,6 +287,8 @@ class Pendulum:
         plt.show()
 
 
+
 if __name__ == "__main__":
+    argparse
     system = Pendulum()
     system.run(13000)
