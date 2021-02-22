@@ -151,7 +151,7 @@ class Pendulum:
         H_estimated = H1 + np.sum(dV[:,2])
 
         # for now fits only to the conservative systems
-        #self.apply_H_correction(H_estimated)
+        self.apply_H_correction(H_estimated)
 
     # corrects the current phase space location to
     # fit H=H_estimated constraint using the gradient descent
@@ -160,9 +160,9 @@ class Pendulum:
         # how much of grad is determined with the current grad
         grad_decay = 0.1
         # how big step wrt to grad
-        step_rate = 0.0001
+        step_rate = 0.00001
         # The allowed error in H
-        H_epsilon = 0.00001
+        H_epsilon = 0.00000001
 
         def loss():
             return (self.H() - H_estimated)**2
